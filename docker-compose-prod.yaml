@@ -26,7 +26,7 @@ services:
       start_period: 10s
 
   product-api:
-    image: YOUR_USERNAME/product-api:latest
+    image: vuuyenthy/product-api:latest
     container_name: product-api-prod
     restart: unless-stopped
 
