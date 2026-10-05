@@ -29,4 +29,14 @@ jobs:
         run: docker compose -f docker-compose-prod.yaml ps
 
       - name: Check Product API
-        run: curl -f http://localhost:3000/health
+        shell: pwsh
+        run: |
+          $response = Invoke-WebRequest -Uri "http://localhost:3000/health" -UseBasicParsing
+
+          if ($response.StatusCode -ne 200) {
+              Write-Error "Product API is not healthy"
+              exit 1
+          }
+
+          Write-Host "Product API is healthy"
+          Write-Host $response.Content
