@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
+      - name: Run unit tests
         run: npm test
 
       - name: Build Docker image
@@ -45,12 +45,16 @@ jobs:
       - name: Wait for MongoDB
         run: |
           for i in {1..30}; do
-            if docker exec nammongodb mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" | grep 1; then
+            if docker exec nammongodb mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" | grep -q "1"; then
+              echo "MongoDB is healthy"
               exit 0
             fi
+
+            echo "Waiting for MongoDB..."
             sleep 2
           done
 
+          echo "MongoDB failed to become healthy"
           docker logs nammongodb
           exit 1
 
@@ -68,16 +72,52 @@ jobs:
         run: |
           for i in {1..30}; do
             if curl -f http://localhost:3000/health; then
+              echo "Product API is healthy"
               exit 0
             fi
+
+            echo "Waiting for Product API..."
             sleep 2
           done
 
+          echo "Product API failed to become healthy"
           docker logs product-api
           exit 1
 
       - name: Test Product API
-        run: curl -f http://localhost:3000/health
+        run: |
+          curl -f http://localhost:3000/health
+
+      - name: Test Product CRUD
+        run: |
+          curl -f -X POST http://localhost:3000/products \
+            -H "Content-Type: application/json" \
+            -d '{"pid":"CI001","pname":"CI Product","price":100000,"quantity":10}'
+
+          curl -f http://localhost:3000/products/CI001
+
+          curl -f -X PUT http://localhost:3000/products/CI001 \
+            -H "Content-Type: application/json" \
+            -d '{"pname":"CI Product Updated","price":200000,"quantity":20}'
+
+          curl -f http://localhost:3000/products/CI001
+
+          curl -f -X DELETE http://localhost:3000/products/CI001
+
+      - name: Show container status
+        if: always()
+        run: |
+          docker ps -a
+
+      - name: Show Product API logs
+        if: always()
+        run: |
+          docker logs product-api || true
+
+      - name: Show MongoDB logs
+        if: always()
+        run: |
+          docker logs nammongodb || true
 
       - name: Cleanup
         if: always()
