@@ -1,0 +1,86 @@
+name: Product API Production CI
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+jobs:
+
+  integration-test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build Docker image
+        run: docker build -t product-api:ci .
+
+      - name: Start MongoDB
+        run: |
+          docker run -d \
+            --name nammongodb \
+            -p 27017:27017 \
+            mongo:8
+
+      - name: Wait for MongoDB
+        run: |
+          for i in {1..30}; do
+            if docker exec nammongodb mongosh --quiet --eval "db.adminCommand({ ping: 1 }).ok" | grep 1; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs nammongodb
+          exit 1
+
+      - name: Start Product API
+        run: |
+          docker run -d \
+            --name product-api \
+            --link nammongodb:mongodb \
+            -p 3000:3000 \
+            -e PORT=3000 \
+            -e MONGO_URI=mongodb://mongodb:27017/productdb \
+            product-api:ci
+
+      - name: Wait for Product API
+        run: |
+          for i in {1..30}; do
+            if curl -f http://localhost:3000/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          docker logs product-api
+          exit 1
+
+      - name: Test Product API
+        run: curl -f http://localhost:3000/health
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f product-api || true
+          docker rm -f nammongodb || true
