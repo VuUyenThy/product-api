@@ -1,0 +1,32 @@
+name: Deploy Product API to Local Docker
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+
+  deploy:
+
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Check Docker
+        run: docker version
+
+      - name: Pull production images
+        run: docker compose -f docker-compose-prod.yaml pull
+
+      - name: Deploy production
+        run: docker compose -f docker-compose-prod.yaml up -d
+
+      - name: Check containers
+        run: docker compose -f docker-compose-prod.yaml ps
+
+      - name: Check Product API
+        run: curl -f http://localhost:3000/health
